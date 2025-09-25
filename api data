@@ -1,0 +1,62 @@
+from datetime import datetime, timedelta
+import pandas as pd
+import requests
+
+
+def fetch_data(symbol, start_date, end_date):
+    url = f"https://msh-appdata.cafef.vn/rest-api/api/v1/TradingViewsData?symbol={symbol}&type=D1"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'X-Requested-With': 'XMLHttpRequest',
+    }
+
+    # Sử dụng datetime để lấy ngày hiện tại
+    params = {
+        'symbol': symbol,
+        'type': 'D1'
+    }
+
+    response = requests.get(url, headers=headers, params=params)
+
+    if response.status_code == 200:
+        data = response.json()
+
+        if data.get("succeeded", False) and "data" in data and "value" in data["data"]:
+            data_infor = data["data"]["value"]["dataInfor"]
+
+            if isinstance(data_infor, list):
+                df = pd.DataFrame(data_infor)
+                df['date'] = pd.to_datetime(df['time'], unit='s')
+                df = df.drop(columns=['time'])
+
+                # Lọc dữ liệu chỉ đến thời gian hiện tại
+                df = df[df['date'] <= datetime.now()]
+                return df
+            else:
+                print("Dữ liệu không đúng định dạng!")
+                return pd.DataFrame()
+        else:
+            print("Lỗi từ API hoặc dữ liệu không hợp lệ.")
+            return pd.DataFrame()
+    else:
+        print(f"Không thể kết nối với API. Mã lỗi: {response.status_code}")
+        return pd.DataFrame()
+
+
+def get_full_data(symbol):
+    # Lấy dữ liệu trong vòng 1 năm trở lại (hoặc một khoảng thời gian cụ thể)
+    full_data = pd.DataFrame()
+    end_date = datetime.today()  # Ngày hiện tại
+    start_date = end_date - timedelta(days=365)  # 365 ngày trước (1 năm)
+
+    df = fetch_data(symbol, start_date, end_date)
+
+    # Kiểm tra dữ liệu trả về
+    if not df.empty:
+        full_data = pd.concat([full_data, df], ignore_index=True)
+
+    return full_data
+
+
+
